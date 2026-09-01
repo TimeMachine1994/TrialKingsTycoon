@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import ReceiptForm from '$lib/components/ReceiptForm.svelte';
 	import Sprite from '$lib/components/Sprite.svelte';
 	import { fmtMoney, fmtRate, fmtUnitCost } from '$lib/money';
 
 	let { data, form } = $props();
 
 	let confirmingVoid = $state(false);
+	let editing = $state(false);
 </script>
 
 <svelte:head><title>Receipt #{data.receipt.id} · Print Kings Tycoon</title></svelte:head>
@@ -38,6 +40,7 @@
 		</div>
 		<div class="ml-auto flex items-center gap-2">
 			{#if !data.receipt.voided_at}
+				<button class="pixel-btn small blue" onclick={() => (editing = !editing)}>{editing ? 'CANCEL EDIT' : 'EDIT'}</button>
 				{#if confirmingVoid}
 					<form method="POST" action="?/void" use:enhance={() => ({ update }) => { confirmingVoid = false; update(); }}>
 						<button class="pixel-btn small red" type="submit">CONFIRM: REVERSE STOCK &amp; COSTS</button>
@@ -51,6 +54,21 @@
 		</div>
 	</div>
 
+	{#if editing}
+		{#key data.receipt}
+			<ReceiptForm
+				action="?/edit"
+				vendors={data.vendors}
+				products={data.products}
+				conversions={data.conversions}
+				receipt={data.receipt}
+				existingLines={data.lines}
+				submitLabel="SAVE CHANGES"
+				allowFiles={false}
+				onsaved={() => (editing = false)}
+			/>
+		{/key}
+	{:else}
 	<table class="pixel-table">
 		<thead>
 			<tr><th>Product</th><th>Qty</th><th>Base units</th><th>Line cost*</th><th>Per base unit</th></tr>
@@ -82,6 +100,7 @@
 		<p class="mt-3 text-sm">* Line costs include allocated tax &amp; shipping.</p>
 	{/if}
 	{#if data.receipt.notes}<p class="mt-2">Notes: {data.receipt.notes}</p>{/if}
+	{/if}
 </div>
 
 <div class="pixel-panel mt-6 p-4">

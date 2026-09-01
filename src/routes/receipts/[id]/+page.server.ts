@@ -1,10 +1,10 @@
-import { db, type Receipt, type Vendor } from '$lib/server/db';
+import { db, type Product, type Receipt, type UnitConversion, type Vendor } from '$lib/server/db';
 import {
 	deleteAttachment,
 	listAttachments,
 	saveAttachment
 } from '$lib/server/services/attachments';
-import { voidReceipt } from '$lib/server/services/receipts';
+import { receiptFromForm, updateReceipt, voidReceipt } from '$lib/server/services/receipts';
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -28,7 +28,11 @@ export const load: PageServerLoad = ({ params }) => {
 
 	const attachments = listAttachments(receipt.id);
 
-	return { receipt, vendor, lines, attachments };
+	const vendors = db.prepare('SELECT * FROM vendors ORDER BY name').all() as Vendor[];
+	const products = db.prepare('SELECT * FROM products ORDER BY name').all() as Product[];
+	const conversions = db.prepare('SELECT * FROM unit_conversions').all() as UnitConversion[];
+
+	return { receipt, vendor, lines, attachments, vendors, products, conversions };
 };
 
 export const actions: Actions = {
@@ -49,6 +53,16 @@ export const actions: Actions = {
 	deleteAttachment: async ({ request }) => {
 		const form = await request.formData();
 		deleteAttachment(Number(form.get('attachment_id')));
+		return { success: true };
+	},
+
+	edit: async ({ request, params }) => {
+		const form = await request.formData();
+		try {
+			updateReceipt(Number(params.id), receiptFromForm(form));
+		} catch (e) {
+			return fail(400, { error: e instanceof Error ? e.message : 'Failed to update receipt' });
+		}
 		return { success: true };
 	},
 
