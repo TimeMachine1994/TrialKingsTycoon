@@ -101,10 +101,53 @@ CREATE TABLE IF NOT EXISTS stock_movements (
 	created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS settings (
+	key TEXT PRIMARY KEY,
+	value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS attachments (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	receipt_id INTEGER NOT NULL REFERENCES receipts(id) ON DELETE CASCADE,
+	original_name TEXT NOT NULL,
+	stored_name TEXT NOT NULL,
+	mime TEXT NOT NULL,
+	size INTEGER NOT NULL,
+	created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_receipt_lines_product ON receipt_lines(product_id);
 CREATE INDEX IF NOT EXISTS idx_job_materials_product ON job_materials(product_id);
 CREATE INDEX IF NOT EXISTS idx_movements_product ON stock_movements(product_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_receipt ON attachments(receipt_id);
 `);
+
+// ---- In-place migrations for existing databases (no-ops when column exists) ----
+
+function addColumnIfMissing(table: string, column: string, ddl: string): void {
+	const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+	if (!cols.some((c) => c.name === column)) {
+		db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+	}
+}
+
+addColumnIfMissing('receipts', 'tax_rate', 'tax_rate INTEGER');
+addColumnIfMissing('receipts', 'voided_at', 'voided_at TEXT');
+
+// ---- Settings helpers ----
+
+export function getSetting(key: string): string | null {
+	const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+		| { value: string }
+		| undefined;
+	return row?.value ?? null;
+}
+
+export function setSetting(key: string, value: string): void {
+	db.prepare(
+		'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+	).run(key, value);
+}
 
 // ---- Row types ----
 
@@ -147,6 +190,18 @@ export interface Receipt {
 	total: number;
 	allocate_extras: number;
 	notes: string | null;
+	created_at: string;
+	tax_rate: number | null;
+	voided_at: string | null;
+}
+
+export interface Attachment {
+	id: number;
+	receipt_id: number;
+	original_name: string;
+	stored_name: string;
+	mime: string;
+	size: number;
 	created_at: string;
 }
 

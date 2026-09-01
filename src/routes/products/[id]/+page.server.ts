@@ -7,6 +7,7 @@ export interface PurchaseHistoryRow {
 	purchased_at: string;
 	vendor_name: string;
 	ref_number: string | null;
+	voided_at: string | null;
 	unit_name: string;
 	qty_purchased: number;
 	qty_base: number;
@@ -26,7 +27,7 @@ export const load: PageServerLoad = ({ params }) => {
 
 	const purchases = db
 		.prepare(
-			`SELECT l.receipt_id, r.purchased_at, v.name AS vendor_name, r.ref_number,
+			`SELECT l.receipt_id, r.purchased_at, v.name AS vendor_name, r.ref_number, r.voided_at,
 				l.unit_name, l.qty_purchased, l.qty_base, l.line_cost, l.unit_cost_base
 			 FROM receipt_lines l
 			 JOIN receipts r ON r.id = l.receipt_id

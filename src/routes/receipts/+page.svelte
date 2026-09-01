@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import ProductForm from '$lib/components/ProductForm.svelte';
 	import Sprite from '$lib/components/Sprite.svelte';
-	import { fmtMoney, parseMoney } from '$lib/money';
+	import { fmtMoney, parseMoney, parseRate, taxFromRate } from '$lib/money';
 
 	let { data, form } = $props();
 
 	let showForm = $state(false);
 	let showVendorForm = $state(false);
+	let showProductForm = $state(false);
 
 	interface LineDraft {
 		product_id: number;
@@ -19,6 +21,25 @@
 	let lines = $state<LineDraft[]>([]);
 	let tax = $state('0');
 	let shipping = $state('0');
+	// svelte-ignore state_referenced_locally -- we intentionally seed from the server default once
+	let taxMode = $state<'rate' | 'manual'>(data.defaultTaxRate ? 'rate' : 'manual');
+	// svelte-ignore state_referenced_locally
+	let taxRate = $state(data.defaultTaxRate);
+
+	// Auto-select a product created inline on the last draft line
+	let handledNewProductId = $state(0);
+	$effect(() => {
+		const id = form?.newProductId;
+		if (typeof id === 'number' && id !== handledNewProductId) {
+			handledNewProductId = id;
+			showProductForm = false;
+			if (lines.length > 0) {
+				const last = lines[lines.length - 1];
+				last.product_id = id;
+				onProductChange(last);
+			}
+		}
+	});
 
 	function addLine() {
 		const first = data.products[0];
@@ -63,8 +84,19 @@
 		}
 	}
 
+	function safeParseRate(v: string): number {
+		try {
+			return parseRate(v || '0');
+		} catch {
+			return 0;
+		}
+	}
+
 	const subtotal = $derived(lines.reduce((a, l) => a + safeParse(l.line_cost), 0));
-	const grandTotal = $derived(subtotal + safeParse(tax) + safeParse(shipping));
+	const taxMicro = $derived(
+		taxMode === 'rate' ? taxFromRate(subtotal, safeParseRate(taxRate)) : safeParse(tax)
+	);
+	const grandTotal = $derived(subtotal + taxMicro + safeParse(shipping));
 
 	const today = new Date().toISOString().slice(0, 10);
 </script>
@@ -101,9 +133,20 @@
 {/if}
 
 {#if showForm}
+	{#if showProductForm}
+		<div class="pixel-panel mb-4 p-4" style="border-color: var(--accent);">
+			<h4 class="pixel-font mb-2 text-[10px]" style="color: var(--accent-dark);">
+				QUICK-ADD PRODUCT (your receipt lines below are safe)
+			</h4>
+			<ProductForm action="?/addProduct" />
+			<button type="button" class="pixel-btn small mt-2" onclick={() => (showProductForm = false)}>CANCEL</button>
+		</div>
+	{/if}
+
 	<form
 		method="POST"
 		action="?/post"
+		enctype="multipart/form-data"
 		class="pixel-panel mb-6 p-4"
 		use:enhance={() =>
 			({ result, update }) => {
@@ -156,10 +199,41 @@
 				</div>
 			</div>
 		{/each}
-		<button type="button" class="pixel-btn small" onclick={addLine}>+ ADD LINE</button>
+		<div class="flex gap-2">
+			<button type="button" class="pixel-btn small" onclick={addLine}>+ ADD LINE</button>
+			<button type="button" class="pixel-btn small blue" onclick={() => (showProductForm = !showProductForm)}>
+				+ NEW PRODUCT
+			</button>
+		</div>
 
-		<div class="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
-			<label>Tax ($) <input name="tax" class="pixel-input" bind:value={tax} /></label>
+		<div class="mt-4 grid grid-cols-2 gap-3 md:grid-cols-6">
+			<input type="hidden" name="tax_mode" value={taxMode} />
+			<label>
+				Tax rate (%)
+				<input
+					name="tax_rate"
+					class="pixel-input"
+					placeholder="7.25"
+					bind:value={taxRate}
+					disabled={taxMode === 'manual'}
+					style={taxMode === 'manual' ? 'opacity: 0.45;' : ''}
+					oninput={() => (taxMode = 'rate')}
+				/>
+			</label>
+			<label>
+				Tax ($){taxMode === 'rate' ? ' — auto' : ' — manual'}
+				{#if taxMode === 'rate'}
+					<span class="flex items-center gap-1">
+						<input class="pixel-input mono-num" value={fmtMoney(taxMicro)} readonly style="background: var(--paper-dark);" />
+						<button type="button" class="pixel-btn small" title="Enter exact tax from receipt" onclick={() => { tax = (taxMicro / 1_000_000).toFixed(2); taxMode = 'manual'; }}>✎</button>
+					</span>
+				{:else}
+					<span class="flex items-center gap-1">
+						<input name="tax" class="pixel-input" bind:value={tax} />
+						<button type="button" class="pixel-btn small" title="Recalculate from rate" onclick={() => (taxMode = 'rate')}>↻</button>
+					</span>
+				{/if}
+			</label>
 			<label>Shipping ($) <input name="shipping" class="pixel-input" bind:value={shipping} /></label>
 			<label class="flex items-end gap-2 pb-2">
 				<input type="checkbox" name="allocate_extras" checked />
@@ -174,6 +248,17 @@
 				<div class="mono-num text-xl" style="color: var(--green);">{fmtMoney(grandTotal)}</div>
 			</div>
 		</div>
+
+		<label class="mt-3 block">
+			Attach receipt files (images / PDF)
+			<input
+				type="file"
+				name="files"
+				multiple
+				accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+				class="pixel-input"
+			/>
+		</label>
 
 		<input type="hidden" name="lines" value={JSON.stringify(lines)} />
 		<button class="pixel-btn green mt-3" type="submit">POST RECEIPT</button>
@@ -191,13 +276,18 @@
 			</thead>
 			<tbody>
 				{#each data.receipts as r (r.id)}
-					<tr>
+					<tr style={r.voided_at ? 'opacity: 0.55; text-decoration: line-through;' : ''}>
 						<td class="mono-num">{r.purchased_at}</td>
-						<td>{r.vendor_name}</td>
+						<td>
+							{r.vendor_name}
+							{#if r.voided_at}
+								<span class="pixel-badge" style="background: var(--red); color: white; text-decoration: none;">VOID</span>
+							{/if}
+						</td>
 						<td class="mono-num">{r.ref_number ?? '—'}</td>
 						<td class="mono-num">{r.line_count}</td>
 						<td class="mono-num">{fmtMoney(r.total)}</td>
-						<td><a href="/receipts/{r.id}" class="pixel-btn small">VIEW</a></td>
+						<td><a href="/receipts/{r.id}" class="pixel-btn small" style="text-decoration: none;">VIEW</a></td>
 					</tr>
 				{/each}
 			</tbody>

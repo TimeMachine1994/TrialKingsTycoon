@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { allocate, divRound, fmtMoney, fmtUnitCost, parseMoney, MICRO } from './money';
-import { unitCostFromLine, weightedAverage } from './server/services/costing';
+import {
+	allocate,
+	divRound,
+	fmtMoney,
+	fmtRate,
+	fmtUnitCost,
+	parseMoney,
+	parseRate,
+	taxFromRate,
+	MICRO,
+	RATE_SCALE
+} from './money';
+import { reverseAverage, unitCostFromLine, weightedAverage } from './server/services/costing';
 
 describe('parseMoney', () => {
 	it('parses plain dollars', () => {
@@ -82,6 +93,49 @@ describe('weightedAverage', () => {
 		const unit = unitCostFromLine(18 * MICRO, 1500);
 		expect(unit).toBe(12_000); // $0.012/sheet
 		expect(weightedAverage(0, 0, 1500, unit)).toBe(12_000);
+	});
+});
+
+describe('tax rates', () => {
+	it('parses percent strings to scaled integers', () => {
+		expect(parseRate('7.25')).toBe(72_500);
+		expect(parseRate('7.25%')).toBe(7.25 * RATE_SCALE);
+		expect(parseRate('')).toBe(0);
+	});
+	it('throws on garbage or negative rates', () => {
+		expect(() => parseRate('abc')).toThrow();
+		expect(() => parseRate('-5')).toThrow();
+	});
+	it('formats scaled rates back to display strings', () => {
+		expect(fmtRate(72_500)).toBe('7.25');
+		expect(fmtRate(60_000)).toBe('6');
+	});
+	it('computes 7.25% of $100.00 as exactly $7.25', () => {
+		expect(taxFromRate(100 * MICRO, parseRate('7.25'))).toBe(7_250_000);
+	});
+	it('rounds half-up at the micro-dollar level', () => {
+		// 7.25% of $0.10 = $0.00725 -> 7,250 µ$
+		expect(taxFromRate(parseMoney('0.10'), parseRate('7.25'))).toBe(7_250);
+	});
+	it('returns 0 for zero subtotal or rate', () => {
+		expect(taxFromRate(0, 72_500)).toBe(0);
+		expect(taxFromRate(100 * MICRO, 0)).toBe(0);
+	});
+});
+
+describe('reverseAverage (void receipts)', () => {
+	it('restores the prior average exactly when voiding the only other receipt', () => {
+		// 100 @ $1.00 existing, then received 100 @ $2.00 -> avg $1.50, 200 on hand.
+		const afterReceipt = weightedAverage(100, 1 * MICRO, 100, 2 * MICRO);
+		expect(afterReceipt).toBe(1_500_000);
+		// Voiding that receipt should take us back to $1.00
+		expect(reverseAverage(200, afterReceipt, 100, 2 * MICRO)).toBe(1 * MICRO);
+	});
+	it('keeps the current average when voiding empties the stock', () => {
+		expect(reverseAverage(1500, 12_000, 1500, 12_000)).toBe(12_000);
+	});
+	it('keeps the current average when stock already went negative', () => {
+		expect(reverseAverage(50, 12_000, 100, 12_000)).toBe(12_000);
 	});
 });
 

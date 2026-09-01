@@ -93,9 +93,14 @@
 				</thead>
 				<tbody>
 					{#each data.purchases as row (row.receipt_id + '-' + row.purchased_at + '-' + row.unit_cost_base)}
-						<tr>
+						<tr style={row.voided_at ? 'opacity: 0.55; text-decoration: line-through;' : ''}>
 							<td class="mono-num">{row.purchased_at}</td>
-							<td>{row.vendor_name}{#if row.ref_number}&nbsp;<span class="text-sm">#{row.ref_number}</span>{/if}</td>
+							<td>
+								{row.vendor_name}{#if row.ref_number}&nbsp;<span class="text-sm">#{row.ref_number}</span>{/if}
+								{#if row.voided_at}
+									<span class="pixel-badge" style="background: var(--red); color: white; text-decoration: none;">VOID</span>
+								{/if}
+							</td>
 							<td class="mono-num">{row.qty_purchased.toLocaleString()} × {row.unit_name} ({row.qty_base.toLocaleString()})</td>
 							<td class="mono-num">{fmtMoney(row.line_cost)}</td>
 							<td class="mono-num">{fmtUnitCost(row.unit_cost_base)}</td>

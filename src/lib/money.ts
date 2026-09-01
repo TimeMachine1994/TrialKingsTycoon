@@ -44,6 +44,31 @@ export function fmtUnitCost(micro: number): string {
 	return `${negative ? '-' : ''}$${str}`;
 }
 
+/** Tax rates are stored as percent × 10,000 (7.25% -> 72_500) for exact math. */
+export const RATE_SCALE = 10_000;
+
+/** Compute tax (µ$) from a subtotal (µ$) and a scaled rate. */
+export function taxFromRate(subtotal: number, rate: number): number {
+	if (subtotal <= 0 || rate <= 0) return 0;
+	return divRound(subtotal * rate, 100 * RATE_SCALE);
+}
+
+/** Parse a user-entered rate string ("7.25") into the scaled integer form. */
+export function parseRate(input: string): number {
+	const cleaned = input.replace(/[%\s]/g, '');
+	if (cleaned === '') return 0;
+	const value = Number(cleaned);
+	if (!Number.isFinite(value) || value < 0) {
+		throw new Error(`Invalid tax rate: "${input}"`);
+	}
+	return Math.round(value * RATE_SCALE);
+}
+
+/** Format a scaled rate back to a display string, e.g. 72500 -> "7.25". */
+export function fmtRate(rate: number): string {
+	return (rate / RATE_SCALE).toString();
+}
+
 /** Integer division with round-half-up (used for cost allocation & averaging). */
 export function divRound(numerator: number, denominator: number): number {
 	if (denominator === 0) return 0;

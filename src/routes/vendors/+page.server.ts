@@ -6,8 +6,8 @@ export const load: PageServerLoad = () => {
 	const vendors = db
 		.prepare(
 			`SELECT v.*,
-				(SELECT COUNT(*) FROM receipts r WHERE r.vendor_id = v.id) AS receipt_count,
-				COALESCE((SELECT SUM(r.total) FROM receipts r WHERE r.vendor_id = v.id), 0) AS total_spent
+				(SELECT COUNT(*) FROM receipts r WHERE r.vendor_id = v.id AND r.voided_at IS NULL) AS receipt_count,
+				COALESCE((SELECT SUM(r.total) FROM receipts r WHERE r.vendor_id = v.id AND r.voided_at IS NULL), 0) AS total_spent
 			 FROM vendors v ORDER BY total_spent DESC`
 		)
 		.all() as Array<Vendor & { receipt_count: number; total_spent: number }>;

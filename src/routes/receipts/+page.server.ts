@@ -1,5 +1,7 @@
-import { db, type Product, type UnitConversion, type Vendor } from '$lib/server/db';
-import { parseMoney } from '$lib/money';
+import { db, getSetting, setSetting, type Product, type UnitConversion, type Vendor } from '$lib/server/db';
+import { parseMoney, parseRate, taxFromRate } from '$lib/money';
+import { saveAttachment } from '$lib/server/services/attachments';
+import { createProductFromForm } from '$lib/server/services/products';
 import { postReceipt, type NewReceiptLine } from '$lib/server/services/receipts';
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
@@ -18,7 +20,9 @@ export const load: PageServerLoad = () => {
 	const products = db.prepare('SELECT * FROM products ORDER BY name').all() as Product[];
 	const conversions = db.prepare('SELECT * FROM unit_conversions').all() as UnitConversion[];
 
-	return { receipts, vendors, products, conversions };
+	const defaultTaxRate = getSetting('default_tax_rate') ?? '';
+
+	return { receipts, vendors, products, conversions, defaultTaxRate };
 };
 
 interface LinePayload {
@@ -37,7 +41,6 @@ export const actions: Actions = {
 			const purchasedAt = String(form.get('purchased_at') ?? '');
 			const refNumber = String(form.get('ref_number') ?? '').trim() || null;
 			const notes = String(form.get('notes') ?? '').trim() || null;
-			const tax = parseMoney(String(form.get('tax') ?? '0') || '0');
 			const shipping = parseMoney(String(form.get('shipping') ?? '0') || '0');
 			const allocateExtras = form.get('allocate_extras') === 'on';
 			const rawLines = JSON.parse(String(form.get('lines') ?? '[]')) as LinePayload[];
@@ -54,19 +57,52 @@ export const actions: Actions = {
 				line_cost: parseMoney(l.line_cost || '0')
 			}));
 
-			postReceipt({
+			// Tax: rate mode (auto-calc, authoritative on the server) or manual $ entry
+			const taxMode = String(form.get('tax_mode') ?? 'manual');
+			const rateStr = String(form.get('tax_rate') ?? '').trim();
+			const subtotal = lines.reduce((a, l) => a + l.line_cost, 0);
+			let tax: number;
+			let taxRate: number | null;
+			if (taxMode === 'rate' && rateStr !== '') {
+				taxRate = parseRate(rateStr);
+				tax = taxFromRate(subtotal, taxRate);
+				setSetting('default_tax_rate', rateStr);
+			} else {
+				taxRate = null;
+				tax = parseMoney(String(form.get('tax') ?? '0') || '0');
+			}
+
+			const receiptId = postReceipt({
 				vendor_id: vendorId,
 				ref_number: refNumber,
 				purchased_at: purchasedAt,
 				tax,
+				tax_rate: taxRate,
 				shipping,
 				allocate_extras: allocateExtras,
 				notes,
 				lines
 			});
+
+			// Save any uploaded receipt files after the transaction committed
+			const files = form.getAll('files').filter((f): f is File => f instanceof File && f.size > 0);
+			for (const file of files) {
+				await saveAttachment(receiptId, file);
+			}
+
 			return { success: true };
 		} catch (e) {
 			return fail(400, { error: e instanceof Error ? e.message : 'Failed to post receipt' });
+		}
+	},
+
+	addProduct: async ({ request }) => {
+		const form = await request.formData();
+		try {
+			const newProductId = createProductFromForm(form);
+			return { success: true, newProductId };
+		} catch (e) {
+			return fail(400, { error: e instanceof Error ? e.message : 'Failed to create product' });
 		}
 	},
 
