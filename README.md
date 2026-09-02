@@ -31,13 +31,24 @@ show 4 decimals when needed.
    **waste** (with reasons). Costs snapshot the average cost at the time of use.
 4. **Products → detail** — full purchase history per item: which vendor, which
    receipt, what unit cost ("what cost where").
-5. **Reports** — monthly sales vs COGS vs waste, waste by product, inventory valuation.
+5. **Reports** — monthly sales vs COGS vs waste, margin by client/job, waste by product,
+   inventory valuation, and efficiency ratios (turnover, days of stock, waste rate,
+   months of supply). Each ratio has a `?` tooltip with its formula; the tooltips turn
+   red until there are 3+ months of job data, because time-based ratios are noisy before that.
+6. **Planner** — break-even and overhead "what-if" scenarios. Each scenario holds
+   overhead lines (rent, software, insurance... monthly / yearly / one-time, each can be
+   toggled off) plus assumptions (materials % of revenue, avg job value, hours and rate per
+   job, jobs per month, growth, target profit). New scenarios start from your actual
+   numbers. Results update live: contribution per job, break-even revenue and jobs,
+   projected net, payback on one-time costs, and a 12-month projection. Save several and
+   open **Compare** to see them side by side against actuals. Mark one **active** and the
+   monthly P&L on Reports gains Labor / Overhead / Net columns from it.
 
 Every stock change writes an immutable row to `stock_movements` — the audit ledger.
 
 ## Tests
 
 ```bash
-npm run test    # vitest: money math, weighted-average costing
+npm run test    # vitest: money math, weighted-average costing, ratios, break-even
 npm run check   # svelte-check
 ```

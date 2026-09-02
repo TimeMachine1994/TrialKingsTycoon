@@ -11,7 +11,8 @@
 		{ href: '/receipts', label: 'Receipts', sprite: 'receipt' },
 		{ href: '/jobs', label: 'Jobs', sprite: 'binder' },
 		{ href: '/vendors', label: 'Vendors', sprite: 'truck' },
-		{ href: '/reports', label: 'Reports', sprite: 'coin' }
+		{ href: '/reports', label: 'Reports', sprite: 'coin' },
+		{ href: '/planner', label: 'Planner', sprite: 'chart' }
 	];
 
 	function isActive(href: string): boolean {
