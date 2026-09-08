@@ -91,6 +91,13 @@ h3,
 	transform: translateY(2px);
 }
 
+.pixel-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+	filter: none;
+	transform: none;
+}
+
 .pixel-btn.blue {
 	background: var(--accent);
 	color: var(--paper);

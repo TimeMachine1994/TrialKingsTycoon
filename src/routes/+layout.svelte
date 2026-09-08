@@ -1,9 +1,12 @@
 <script lang="ts">
 	import '../app.css';
+	import AgentDrawer from '$lib/components/agent/AgentDrawer.svelte';
 	import Sprite from '$lib/components/Sprite.svelte';
 	import { page } from '$app/state';
 
-	let { children } = $props();
+	let { data, children } = $props();
+
+	let agentOpen = $state(false);
 
 	const nav = [
 		{ href: '/', label: 'HQ', sprite: 'store' },
@@ -29,6 +32,17 @@
 				PRINT KINGS TYCOON
 			</h1>
 			<span class="pixel-badge" style="background: var(--gold);">INVENTORY HQ</span>
+			<span class="flex-1"></span>
+			<button
+				type="button"
+				class="pixel-btn {agentOpen ? 'blue' : ''}"
+				disabled={!data.agentEnabled}
+				title={data.agentEnabled ? 'Open the HQ Assistant' : 'Set AGENT_BASE_URL in .env to enable the assistant'}
+				onclick={() => (agentOpen = !agentOpen)}
+			>
+				<Sprite name="invoice" size={24} />
+				ASSISTANT
+			</button>
 		</div>
 		<nav class="mt-4 flex flex-wrap gap-2">
 			{#each nav as item (item.href)}
@@ -54,3 +68,7 @@
 		</span>
 	</footer>
 </div>
+
+{#if data.agentEnabled}
+	<AgentDrawer bind:open={agentOpen} />
+{/if}

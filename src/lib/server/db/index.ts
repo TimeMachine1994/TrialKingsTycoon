@@ -144,6 +144,27 @@ CREATE TABLE IF NOT EXISTS scenario_costs (
 	sort_order INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS agent_conversations (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	title TEXT,
+	created_at TEXT NOT NULL DEFAULT (datetime('now')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS agent_messages (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	conversation_id INTEGER NOT NULL REFERENCES agent_conversations(id) ON DELETE CASCADE,
+	role TEXT NOT NULL CHECK (role IN ('user','assistant','result')),
+	content TEXT NOT NULL,
+	raw TEXT,
+	image_name TEXT,
+	proposal_json TEXT,
+	proposal_status TEXT CHECK (proposal_status IN ('pending','confirmed','rejected','failed')),
+	proposal_result TEXT,
+	created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_messages_conv ON agent_messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_receipt_lines_product ON receipt_lines(product_id);
 CREATE INDEX IF NOT EXISTS idx_scenario_costs_scenario ON scenario_costs(scenario_id);
 CREATE INDEX IF NOT EXISTS idx_job_materials_product ON job_materials(product_id);
@@ -306,6 +327,29 @@ export interface ScenarioCost {
 	cadence: CostCadence;
 	enabled: number;
 	sort_order: number;
+}
+
+export interface AgentConversation {
+	id: number;
+	title: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export type AgentRole = 'user' | 'assistant' | 'result';
+export type ProposalStatus = 'pending' | 'confirmed' | 'rejected' | 'failed';
+
+export interface AgentMessage {
+	id: number;
+	conversation_id: number;
+	role: AgentRole;
+	content: string;
+	raw: string | null;
+	image_name: string | null;
+	proposal_json: string | null;
+	proposal_status: ProposalStatus | null;
+	proposal_result: string | null;
+	created_at: string;
 }
 
 // ---- Seed (only when completely empty) ----
