@@ -20,29 +20,44 @@ export function isAllowedMime(mime: string): boolean {
 	return mime in ALLOWED_MIME;
 }
 
-/** Persists an uploaded File to disk and records it against a receipt. */
-export async function saveAttachment(receiptId: number, file: File): Promise<Attachment> {
-	if (!isAllowedMime(file.type)) {
-		throw new Error(`Unsupported file type: ${file.type || 'unknown'} (images & PDFs only)`);
+export interface AttachmentBytes {
+	name: string;
+	mime: string;
+	bytes: Buffer;
+}
+
+/** Persists raw file bytes to disk and records them against a receipt. */
+export function saveAttachmentBytes(receiptId: number, file: AttachmentBytes): Attachment {
+	if (!isAllowedMime(file.mime)) {
+		throw new Error(`Unsupported file type: ${file.mime || 'unknown'} (images & PDFs only)`);
 	}
-	if (file.size <= 0) throw new Error('File is empty');
-	if (file.size > MAX_ATTACHMENT_BYTES) {
+	const size = file.bytes.byteLength;
+	if (size <= 0) throw new Error('File is empty');
+	if (size > MAX_ATTACHMENT_BYTES) {
 		throw new Error(`File too large (max ${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB)`);
 	}
 
-	const storedName = `${crypto.randomUUID()}${ALLOWED_MIME[file.type]}`;
-	const buffer = Buffer.from(await file.arrayBuffer());
-	fs.writeFileSync(path.join(ATTACHMENTS_DIR, storedName), buffer);
+	const storedName = `${crypto.randomUUID()}${ALLOWED_MIME[file.mime]}`;
+	fs.writeFileSync(path.join(ATTACHMENTS_DIR, storedName), file.bytes);
 
 	const id = db
 		.prepare(
 			`INSERT INTO attachments (receipt_id, original_name, stored_name, mime, size)
 			 VALUES (?, ?, ?, ?, ?)`
 		)
-		.run(receiptId, file.name || storedName, storedName, file.type, file.size)
+		.run(receiptId, file.name || storedName, storedName, file.mime, size)
 		.lastInsertRowid as number;
 
 	return db.prepare('SELECT * FROM attachments WHERE id = ?').get(id) as Attachment;
+}
+
+/** Persists an uploaded File to disk and records it against a receipt. */
+export async function saveAttachment(receiptId: number, file: File): Promise<Attachment> {
+	return saveAttachmentBytes(receiptId, {
+		name: file.name,
+		mime: file.type,
+		bytes: Buffer.from(await file.arrayBuffer())
+	});
 }
 
 export function getAttachment(id: number): Attachment | undefined {

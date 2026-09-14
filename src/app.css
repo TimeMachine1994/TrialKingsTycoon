@@ -91,6 +91,13 @@ h3,
 	transform: translateY(2px);
 }
 
+.pixel-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+	filter: none;
+	transform: none;
+}
+
 .pixel-btn.blue {
 	background: var(--accent);
 	color: var(--paper);
@@ -164,4 +171,55 @@ h3,
 
 .mono-num {
 	font-variant-numeric: tabular-nums;
+}
+
+/* Inline "?" badge with a hover/focus tooltip bubble */
+.pixel-tip-wrap {
+	position: relative;
+	display: inline-block;
+	margin-left: 6px;
+	vertical-align: middle;
+}
+
+.pixel-tip {
+	font-family: 'Press Start 2P', monospace;
+	font-size: 8px;
+	line-height: 1;
+	width: 18px;
+	height: 18px;
+	background: var(--gold);
+	color: var(--ink);
+	border: 2px solid var(--ink);
+	cursor: help;
+}
+
+.pixel-tip.warn {
+	background: var(--red);
+	color: var(--paper);
+}
+
+.pixel-tip-bubble {
+	display: none;
+	position: absolute;
+	left: 50%;
+	bottom: calc(100% + 8px);
+	transform: translateX(-50%);
+	width: 260px;
+	padding: 8px 10px;
+	background: var(--panel);
+	color: var(--ink);
+	border: 3px solid var(--ink);
+	box-shadow: 4px 4px 0 0 rgba(0, 0, 0, 0.45);
+	font-family: 'VT323', monospace;
+	font-size: 16px;
+	line-height: 1.25;
+	text-align: left;
+	text-transform: none;
+	white-space: normal;
+	z-index: 20;
+}
+
+.pixel-tip-wrap:hover .pixel-tip-bubble,
+.pixel-tip-wrap:focus-within .pixel-tip-bubble {
+	display: block;
 }

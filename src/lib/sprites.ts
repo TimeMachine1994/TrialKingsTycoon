@@ -168,6 +168,24 @@ export const SPRITES: Record<string, string[]> = {
 		'................',
 		'................'
 	],
+	chart: [
+		'................',
+		'.K..............',
+		'.K..........KKK.',
+		'.K..........KGK.',
+		'.K..........KGK.',
+		'.K......KKK.KGK.',
+		'.K......KCK.KGK.',
+		'.K..KKK.KCK.KGK.',
+		'.K..KYK.KCK.KGK.',
+		'.K..KYK.KCK.KGK.',
+		'.K..KYK.KCK.KGK.',
+		'.K..KYK.KCK.KGK.',
+		'.KKKKKKKKKKKKKKK',
+		'.K..............',
+		'................',
+		'................'
+	],
 	trash: [
 		'................',
 		'......KKKK......',

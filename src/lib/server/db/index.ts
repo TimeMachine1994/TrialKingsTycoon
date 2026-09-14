@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { CostCadence, CostCategory } from '$lib/planner-types';
 
 const DATA_DIR = path.resolve('data');
 const DB_PATH = path.join(DATA_DIR, 'inventory.db');
@@ -116,7 +117,56 @@ CREATE TABLE IF NOT EXISTS attachments (
 	created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS scenarios (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL,
+	notes TEXT,
+	is_active INTEGER NOT NULL DEFAULT 0,
+	variable_cost_rate INTEGER NOT NULL DEFAULT 0,
+	avg_job_value INTEGER NOT NULL DEFAULT 0,
+	hours_per_job REAL NOT NULL DEFAULT 0,
+	hourly_rate INTEGER NOT NULL DEFAULT 0,
+	jobs_per_month REAL NOT NULL DEFAULT 0,
+	jobs_growth_rate INTEGER NOT NULL DEFAULT 0,
+	target_profit INTEGER NOT NULL DEFAULT 0,
+	created_at TEXT NOT NULL DEFAULT (datetime('now')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS scenario_costs (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	scenario_id INTEGER NOT NULL REFERENCES scenarios(id) ON DELETE CASCADE,
+	label TEXT NOT NULL,
+	category TEXT NOT NULL CHECK (category IN ('rent','utilities','software','insurance','equipment','marketing','labor','other')),
+	amount INTEGER NOT NULL,
+	cadence TEXT NOT NULL CHECK (cadence IN ('monthly','yearly','one_time')),
+	enabled INTEGER NOT NULL DEFAULT 1,
+	sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS agent_conversations (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	title TEXT,
+	created_at TEXT NOT NULL DEFAULT (datetime('now')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS agent_messages (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	conversation_id INTEGER NOT NULL REFERENCES agent_conversations(id) ON DELETE CASCADE,
+	role TEXT NOT NULL CHECK (role IN ('user','assistant','result')),
+	content TEXT NOT NULL,
+	raw TEXT,
+	image_name TEXT,
+	proposal_json TEXT,
+	proposal_status TEXT CHECK (proposal_status IN ('pending','confirmed','rejected','failed')),
+	proposal_result TEXT,
+	created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_messages_conv ON agent_messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_receipt_lines_product ON receipt_lines(product_id);
+CREATE INDEX IF NOT EXISTS idx_scenario_costs_scenario ON scenario_costs(scenario_id);
 CREATE INDEX IF NOT EXISTS idx_job_materials_product ON job_materials(product_id);
 CREATE INDEX IF NOT EXISTS idx_movements_product ON stock_movements(product_id);
 CREATE INDEX IF NOT EXISTS idx_attachments_receipt ON attachments(receipt_id);
@@ -249,6 +299,56 @@ export interface StockMovement {
 	ref_table: string | null;
 	ref_id: number | null;
 	note: string | null;
+	created_at: string;
+}
+
+export interface Scenario {
+	id: number;
+	name: string;
+	notes: string | null;
+	is_active: number;
+	variable_cost_rate: number;
+	avg_job_value: number;
+	hours_per_job: number;
+	hourly_rate: number;
+	jobs_per_month: number;
+	jobs_growth_rate: number;
+	target_profit: number;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface ScenarioCost {
+	id: number;
+	scenario_id: number;
+	label: string;
+	category: CostCategory;
+	amount: number;
+	cadence: CostCadence;
+	enabled: number;
+	sort_order: number;
+}
+
+export interface AgentConversation {
+	id: number;
+	title: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export type AgentRole = 'user' | 'assistant' | 'result';
+export type ProposalStatus = 'pending' | 'confirmed' | 'rejected' | 'failed';
+
+export interface AgentMessage {
+	id: number;
+	conversation_id: number;
+	role: AgentRole;
+	content: string;
+	raw: string | null;
+	image_name: string | null;
+	proposal_json: string | null;
+	proposal_status: ProposalStatus | null;
+	proposal_result: string | null;
 	created_at: string;
 }
 
